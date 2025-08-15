@@ -3,13 +3,14 @@ import GameBoard from './components/GameBoard';
 import Keyboard from './components/Keyboard';
 import Message from './components/Message';
 import { getNextWord, isValidWord, CUSTOM_WORDS } from './words';
-import { 
-  saveGameState, 
-  loadGameState, 
-  clearCurrentGame, 
+import {
+  saveGameState,
+  loadGameState,
+  clearCurrentGame,
   saveCompletedWord, 
-  getCompletedWords, 
-  getGameStats 
+  getCompletedWords,
+  getGameStats,
+  clearCompletedWords
 } from './gameStorage';
 
 const GAME_STATUS = {
@@ -26,6 +27,9 @@ function App() {
   const [gameStatus, setGameStatus] = useState(GAME_STATUS.PLAYING);
   const [keyStates, setKeyStates] = useState({});
   const [message, setMessage] = useState('');
+  const [showWinOverlay, setShowWinOverlay] = useState(false);
+  const [showLossOverlay, setShowLossOverlay] = useState(false);
+  const [keyboardKey, setKeyboardKey] = useState(0); // Force keyboard re-render
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check if user has a saved theme preference
     const saved = localStorage.getItem('darkMode');
@@ -48,16 +52,55 @@ function App() {
   const initializeGame = useCallback(() => {
     const savedGame = loadGameState();
 
-    if (savedGame && savedGame.gameStatus === GAME_STATUS.PLAYING) {
-      // Resume saved game
+    if (savedGame && savedGame.gameStatus === GAME_STATUS.PLAYING && savedGame.currentRow > 0) {
+      // Only resume saved game if there are actual guesses in progress
       setTargetWord(savedGame.targetWord);
       setGuesses(savedGame.guesses);
       setCurrentGuess(savedGame.currentGuess);
       setCurrentRow(savedGame.currentRow);
       setGameStatus(savedGame.gameStatus);
-      setKeyStates(savedGame.keyStates || {});
+      
+      // Always start with clean keyboard states, even when loading a saved game
+      // Re-calculate keyboard states based on current guesses instead of loading from storage
+      setKeyStates({});
+      
+      // Re-apply keyboard states based on current guesses
+      if (savedGame.guesses && savedGame.guesses.length > 0) {
+        const newKeyStates = {};
+        savedGame.guesses.forEach(guess => {
+          const guessLetters = guess.split('');
+          const targetLetters = savedGame.targetWord.split('');
+          const wordLength = savedGame.targetWord.length;
+          
+          // First pass: mark correct positions
+          for (let i = 0; i < wordLength; i++) {
+            if (guessLetters[i] === targetLetters[i]) {
+              newKeyStates[guessLetters[i]] = 'correct';
+              targetLetters[i] = null;
+            }
+          }
+          
+          // Second pass: mark present but wrong position
+          for (let i = 0; i < wordLength; i++) {
+            if (guessLetters[i] !== null && targetLetters.includes(guessLetters[i])) {
+              if (!newKeyStates[guessLetters[i]] || newKeyStates[guessLetters[i]] !== 'correct') {
+                newKeyStates[guessLetters[i]] = 'present';
+              }
+              targetLetters[targetLetters.indexOf(guessLetters[i])] = null;
+            }
+          }
+          
+          // Third pass: mark absent letters
+          for (let i = 0; i < wordLength; i++) {
+            if (!newKeyStates[guessLetters[i]]) {
+              newKeyStates[guessLetters[i]] = 'absent';
+            }
+          }
+        });
+        setKeyStates(newKeyStates);
+      }
     } else {
-      // Start new game
+      // Start new game (always reset keyboard states)
       startNewGame();
     }
   }, []);
@@ -65,19 +108,21 @@ function App() {
   const startNewGame = () => {
     // Get the next word in sequence based on completed words count
     const newWord = getNextWord();
-
+    
+    // Clear any cached keyboard states
+    clearCurrentGame();
+    
     setTargetWord(newWord);
     setGuesses([]);
     setCurrentGuess('');
     setCurrentRow(0);
     setGameStatus(GAME_STATUS.PLAYING);
-    setKeyStates({});
+    setKeyStates({}); // Start with clean keyboard state
     setMessage('');
-    
-    clearCurrentGame();
+    setKeyboardKey(prev => prev + 1); // Force keyboard component re-render
   };
 
-  // Save game state whenever it changes
+  // Save game state whenever it changes (but not when game is complete, and don't save keyboard states)
   useEffect(() => {
     if (targetWord && gameStatus === GAME_STATUS.PLAYING) {
       const gameState = {
@@ -85,12 +130,12 @@ function App() {
         guesses,
         currentGuess,
         currentRow,
-        gameStatus,
-        keyStates
+        gameStatus
+        // Don't save keyStates - we'll recalculate them when loading
       };
       saveGameState(gameState);
     }
-  }, [targetWord, guesses, currentGuess, currentRow, gameStatus, keyStates]);
+  }, [targetWord, guesses, currentGuess, currentRow, gameStatus]);
 
   const updateKeyStates = (guess, target) => {
     const newKeyStates = { ...keyStates };
@@ -153,19 +198,40 @@ function App() {
       setGuesses(newGuesses);
       
       // Update keyboard states with staggered timing
-      setTimeout(() => {
-        updateKeyStates(currentGuess, targetWord);
-      }, 1500); // Wait for tile animations to complete
+      const keyboardUpdatePromise = new Promise((resolve) => {
+        setTimeout(() => {
+          updateKeyStates(currentGuess, targetWord);
+          resolve();
+        }, 1500); // Wait for tile animations to complete
+      });
 
       if (currentGuess === targetWord) {
-        setGameStatus(GAME_STATUS.WON);
-        saveCompletedWord(targetWord, newGuesses.length);
-        showMessage(`Congratulations! You got it in ${newGuesses.length} ${newGuesses.length === 1 ? 'try' : 'tries'}!`, 3000);
-        clearCurrentGame();
+        // Don't change game status immediately to avoid showing the bottom button
+        saveCompletedWord(targetWord, newGuesses.length, true); // true = win
+        
+        // Wait for keyboard update to complete before showing overlay and changing status
+        keyboardUpdatePromise.then(() => {
+          setGameStatus(GAME_STATUS.WON);
+          setShowWinOverlay(true);
+          // Clear game state after keyboard highlighting is complete
+          setTimeout(() => {
+            clearCurrentGame();
+          }, 100);
+        });
       } else if (newGuesses.length >= 6) {
-        setGameStatus(GAME_STATUS.LOST);
-        showMessage(`Game over! The word was ${targetWord}`, 4000);
-        clearCurrentGame();
+        // Don't change game status immediately to avoid showing the bottom button
+        // Save the word as completed even though it was lost, so we can advance to the next word
+        saveCompletedWord(targetWord, newGuesses.length, false); // false = loss
+        
+        // Wait for keyboard update before showing overlay and changing status
+        keyboardUpdatePromise.then(() => {
+          setGameStatus(GAME_STATUS.LOST);
+          setShowLossOverlay(true);
+          // Clear game state after keyboard highlighting is complete
+          setTimeout(() => {
+            clearCurrentGame();
+          }, 100);
+        });
       }
 
       setCurrentGuess('');
@@ -203,7 +269,29 @@ function App() {
   }, [gameStatus, handleKeyPress]);
 
   const handleNewWordClick = () => {
-    startNewGame();
+    setShowWinOverlay(false);
+    setShowLossOverlay(false);
+    
+    // If this is the last word, clear completed words to start from beginning
+    if (isLastWord()) {
+      clearCompletedWords();
+    }
+    
+    // Completely clear keyboard states - set to null first, then empty object
+    setKeyStates(null);
+    setKeyboardKey(prev => prev + 1); // Force keyboard re-render
+    
+    // Use setTimeout to ensure the null state is applied before setting empty object
+    setTimeout(() => {
+      setKeyStates({});
+      startNewGame();
+    }, 50); // Increased timeout to ensure clean reset
+  };
+
+  // Check if this is the last word in the sequence
+  const isLastWord = () => {
+    const currentWordIndex = CUSTOM_WORDS.indexOf(targetWord);
+    return currentWordIndex === CUSTOM_WORDS.length - 1;
   };
 
   return (
@@ -223,24 +311,43 @@ function App() {
       />
 
       <Keyboard
+        key={keyboardKey}
         onKeyPress={handleKeyPress}
         keyStates={keyStates}
       />
 
-      {gameStatus !== GAME_STATUS.PLAYING && (
-        <div className="game-complete">
-          {gameStatus === GAME_STATUS.WON && (
-            <p>🎉 Congratulations! You solved it! 🎉</p>
-          )}
-          {gameStatus === GAME_STATUS.LOST && (
-            <p>😔 Better luck next time! The word was <strong>{targetWord}</strong></p>
-          )}
-          <button 
-            className="new-word-button"
-            onClick={handleNewWordClick}
-          >
-            Play New Word
-          </button>
+      {showWinOverlay && (
+        <div className="overlay">
+          <div className="win-modal">
+            <div className="win-content">
+              <h2>🎉 Congratulations! 🎉</h2>
+              <p>You solved it in {guesses.length} {guesses.length === 1 ? 'try' : 'tries'}!</p>
+              <button 
+                className="continue-button"
+                onClick={handleNewWordClick}
+              >
+                {isLastWord() ? "Start From The Beginning" : "Play Next Word"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLossOverlay && (
+        <div className="overlay">
+          <div className="win-modal">
+            <div className="win-content">
+              <h2>😔 Game Over 😔</h2>
+              <p>Better luck next time!</p>
+              <p>The word was <strong>{targetWord}</strong></p>
+              <button 
+                className="continue-button"
+                onClick={handleNewWordClick}
+              >
+                {isLastWord() ? "Start From The Beginning" : "Play Next Word"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

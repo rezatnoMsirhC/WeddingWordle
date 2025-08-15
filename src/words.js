@@ -7,7 +7,7 @@ export const CUSTOM_WORDS = customWordsData.words;
 // Helper function to get the next word in sequence based on completed words count
 export function getNextWord() {
   // Get completed words from localStorage to determine which word to show next
-  const completedWords = JSON.parse(localStorage.getItem('completedWords') || '[]');
+  const completedWords = JSON.parse(localStorage.getItem('weddingWordle_completedWords') || '[]');
   const currentIndex = completedWords.length;
   
   // If we've completed all words, start over or handle as needed

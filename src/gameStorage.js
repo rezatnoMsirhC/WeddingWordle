@@ -32,15 +32,15 @@ export function clearCurrentGame() {
   }
 }
 
-export function saveCompletedWord(word, attempts) {
+export function saveCompletedWord(word, attempts, isWin = true) {
   try {
     let completedWords = getCompletedWords();
     if (!completedWords.includes(word)) {
       completedWords.push(word);
       localStorage.setItem(STORAGE_KEYS.COMPLETED_WORDS, JSON.stringify(completedWords));
       
-      // Update stats
-      updateGameStats(attempts);
+      // Update stats with win/loss information
+      updateGameStats(attempts, isWin);
     }
   } catch (error) {
     console.error('Failed to save completed word:', error);
@@ -57,11 +57,11 @@ export function getCompletedWords() {
   }
 }
 
-export function updateGameStats(attempts) {
+export function updateGameStats(attempts, isWin = true) {
   try {
     let stats = getGameStats();
     stats.totalGames++;
-    if (attempts <= 6) {
+    if (isWin && attempts <= 6) {
       stats.totalWins++;
       stats.attemptsDistribution[attempts - 1]++;
     }
@@ -98,5 +98,13 @@ export function clearAllData() {
     });
   } catch (error) {
     console.error('Failed to clear all data:', error);
+  }
+}
+
+export function clearCompletedWords() {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.COMPLETED_WORDS);
+  } catch (error) {
+    console.error('Failed to clear completed words:', error);
   }
 }

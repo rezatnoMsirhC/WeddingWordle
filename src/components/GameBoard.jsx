@@ -4,6 +4,11 @@ function GameBoard({ guesses, currentGuess, targetWord, currentRow }) {
   const [animatingRow, setAnimatingRow] = useState(-1);
   const wordLength = targetWord.length;
 
+  // Reset animation when target word changes
+  useEffect(() => {
+    setAnimatingRow(-1);
+  }, [targetWord]);
+
   // Trigger animation for the most recent guess
   useEffect(() => {
     if (guesses.length > 0) {

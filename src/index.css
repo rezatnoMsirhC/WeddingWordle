@@ -174,24 +174,27 @@ body {
   margin-bottom: 20px;
   justify-content: center;
   max-width: 100%;
-  overflow-x: auto;
+  width: 100%;
 }
 
 .row {
   display: grid;
   grid-template-columns: repeat(var(--word-length, 5), 1fr);
-  gap: 5px;
+  gap: clamp(3px, 1vw, 5px);
+  max-width: 100%;
 }
 
 .tile {
-  width: clamp(35px, 8vw, 50px);
-  height: clamp(35px, 8vw, 50px);
+  width: clamp(30px, calc((100vw - 60px) / var(--word-length, 5) - 5px), 50px);
+  height: clamp(30px, calc((100vw - 60px) / var(--word-length, 5) - 5px), 50px);
+  max-width: 50px;
+  max-height: 50px;
   border: 2px solid var(--tile-border);
   background-color: var(--tile-bg);
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: clamp(1.1rem, 3.5vw, 1.6rem);
+  font-size: clamp(0.9rem, calc(2.5rem / var(--word-length, 5) + 0.5rem), 1.6rem);
   font-weight: bold;
   text-transform: uppercase;
   color: var(--tile-text);
@@ -345,6 +348,84 @@ body {
   background-color: rgba(83, 141, 78, 0.1);
 }
 
+/* Win overlay styles */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.win-modal {
+  background-color: var(--bg-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideIn 0.4s ease-out;
+}
+
+.win-content {
+  padding: 30px;
+  text-align: center;
+}
+
+.win-content h2 {
+  color: #538d4e;
+  font-size: 2rem;
+  margin-bottom: 15px;
+  font-family: 'Wedding', 'Dancing Script', cursive;
+}
+
+.win-content p {
+  color: var(--text-color);
+  font-size: 1.2rem;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.continue-button {
+  background-color: #538d4e;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  padding: 14px 28px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+  min-width: 200px;
+}
+
+.continue-button:hover {
+  background-color: #4a7c59;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* Tablet styles */
 @media (max-width: 768px) {
   .game-container {
@@ -389,6 +470,16 @@ body {
     margin-bottom: 12px;
   }
   
+  .row {
+    gap: clamp(2px, 0.5vw, 3px);
+  }
+  
+  .tile {
+    width: clamp(25px, calc((100vw - 40px) / var(--word-length, 5) - 3px), 45px);
+    height: clamp(25px, calc((100vw - 40px) / var(--word-length, 5) - 3px), 45px);
+    font-size: clamp(0.8rem, calc(2rem / var(--word-length, 5) + 0.4rem), 1.4rem);
+  }
+  
   .keyboard {
     margin-top: 12px;
   }
@@ -409,6 +500,24 @@ body {
     margin-top: 15px;
   }
   
+  .win-content {
+    padding: 20px;
+  }
+  
+  .win-content h2 {
+    font-size: 1.6rem;
+  }
+  
+  .win-content p {
+    font-size: 1rem;
+  }
+  
+  .continue-button {
+    padding: 12px 20px;
+    font-size: 14px;
+    min-width: 160px;
+  }
+
   .game-complete {
     padding: 15px;
     margin-top: 15px;
@@ -428,6 +537,17 @@ body {
   
   .game-board {
     margin-bottom: 10px;
+  }
+  
+  .row {
+    gap: clamp(1px, 0.3vw, 2px);
+  }
+  
+  .tile {
+    width: clamp(22px, calc((100vw - 30px) / var(--word-length, 5) - 2px), 40px);
+    height: clamp(22px, calc((100vw - 30px) / var(--word-length, 5) - 2px), 40px);
+    font-size: clamp(0.7rem, calc(1.5rem / var(--word-length, 5) + 0.3rem), 1.2rem);
+    border: 1px solid var(--tile-border);
   }
   
   .keyboard {

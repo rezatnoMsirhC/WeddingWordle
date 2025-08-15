@@ -20,7 +20,8 @@ function Keyboard({ onKeyPress, keyStates }) {
       className += ' letter';
     }
     
-    if (keyStates[key]) {
+    // Only add key state classes if keyStates exists, is not null, and has the key
+    if (keyStates && typeof keyStates === 'object' && keyStates[key]) {
       className += ` ${keyStates[key]}`;
     }
     
